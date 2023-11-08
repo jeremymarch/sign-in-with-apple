@@ -1,6 +1,6 @@
 [package]
 name = "sign-in-with-apple"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["extrawurst <mail@rusticorn.com>"]
 description = "Sign In With Apple Validation in Async Rust"
 edition = "2021"
@@ -18,10 +18,10 @@ keywords = [
 ]
 
 [dependencies]
-jsonwebtoken = "9.1"
-serde = {version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-hyper = { version = "0.14", features = ["http1"] }
+jsonwebtoken = "9.1.0"
+serde = {version = "1.0.192", features = ["derive"] }
+serde_json = "1.0.108"
+hyper = { version = "0.14.27", features = ["http1"] }
 hyper-tls = "0.5"
-tokio = { version = "1", features = ["rt-multi-thread","net","macros"] }
-thiserror = "1.0"
+tokio = { version = "1.33", features = ["rt-multi-thread", "net", "macros"] }
+thiserror = "1.0.50"
