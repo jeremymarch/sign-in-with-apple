@@ -41,7 +41,7 @@ async fn fetch_apple_keys() -> Result<HashMap<String, KeyComponents>>
 	})
 }
 
-/// decoe token with optional expiry validation
+/// decode token with optional expiry validation
 pub async fn decode_token<T: DeserializeOwned>(
 	client_id: &str,
 	token: &str,
@@ -113,19 +113,18 @@ mod tests {
 	use super::*;
 
 	#[tokio::test]
-	async fn validate_test() -> std::result::Result<(), Error> {
+	async fn validate_test() {
 		let client_id = "com.gameroasters.stack4";
 		let id_token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
 
-		let result = validate(client_id, id_token, true).await?;
+		let result =
+			validate(client_id, id_token, true).await.unwrap();
 
 		assert_eq!(
 			result.claims.sub,
 			"001026.16112b36378440d995af22b268f00984.1744"
 		);
 		assert_eq!(result.claims.aud, client_id);
-
-		Ok(())
 	}
 
 	#[tokio::test]
@@ -136,6 +135,7 @@ mod tests {
 		let result = validate(client_id, id_token, false).await;
 
 		assert!(is_expired(&result));
+		assert!(result.is_err());
 	}
 
 	// #[tokio::test]
