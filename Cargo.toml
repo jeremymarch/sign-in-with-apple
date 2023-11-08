@@ -1,6 +1,6 @@
 [package]
 name = "sign-in-with-apple"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["extrawurst <mail@rusticorn.com>"]
 description = "Sign In With Apple Validation in Async Rust"
 edition = "2021"
