@@ -51,6 +51,7 @@ async fn fetch_apple_keys() -> Result<HashMap<String, KeyComponents>>
 
 /// decoe token with optional expiry validation
 pub async fn decode_token<T: DeserializeOwned>(
+	client_id: String,
 	token: String,
 	ignore_expire: bool,
 ) -> Result<TokenData<T>> {
@@ -69,6 +70,9 @@ pub async fn decode_token<T: DeserializeOwned>(
 	};
 
 	let mut val = Validation::new(header.alg);
+	val.set_audience(&[client_id]);
+    val.set_issuer(&[APPLE_ISSUER]);
+
 	val.validate_exp = !ignore_expire;
 	let token_data = decode::<T>(
 		token.as_str(),
@@ -86,14 +90,14 @@ pub async fn validate(
 	ignore_expire: bool,
 ) -> Result<TokenData<Claims>> {
 	let token_data =
-		decode_token::<Claims>(token, ignore_expire).await?;
+		decode_token::<Claims>(client_id.clone(), token, ignore_expire).await?;
 
 	//TODO: can this be validated alread in `decode_token`?
 	if token_data.claims.iss != APPLE_ISSUER {
 		return Err(Error::IssClaimMismatch);
 	}
 
-	if token_data.claims.sub != client_id {
+	if token_data.claims.aud != client_id {
 		return Err(Error::ClientIdMismatch);
 	}
 	Ok(token_data)
@@ -124,14 +128,14 @@ mod tests {
 	#[tokio::test]
 	async fn validate_test() -> std::result::Result<(), Error> {
 		let user_token =
-			"001026.16112b36378440d995af22b268f00984.1744";
+		"com.gameroasters.stack4";
 		let token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
 
 		let result =
 			validate(user_token.to_string(), token.to_string(), true)
 				.await?;
 
-		assert_eq!(result.claims.sub, user_token);
+		assert_eq!(result.claims.sub, "001026.16112b36378440d995af22b268f00984.1744");
 		assert_eq!(result.claims.aud, "com.gameroasters.stack4");
 
 		Ok(())
@@ -168,7 +172,7 @@ mod tests {
 	async fn test_server_to_server_payload() {
 		let token = "eyJraWQiOiJlWGF1bm1MIiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MzAxNzE4MTIsImlhdCI6MTYzMDA4NTQxMiwianRpIjoiQjk0T2REMDNwRnNhWWFOLUZ0djdtQSIsImV2ZW50cyI6IntcInR5cGVcIjpcImVtYWlsLWRpc2FibGVkXCIsXCJzdWJcIjpcIjAwMTAyNi4xNjExMmIzNjM3ODQ0MGQ5OTVhZjIyYjI2OGYwMDk4NC4xNzQ0XCIsXCJldmVudF90aW1lXCI6MTYzMDA4NTQwMzY0OCxcImVtYWlsXCI6XCJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbVwiLFwiaXNfcHJpdmF0ZV9lbWFpbFwiOlwidHJ1ZVwifSJ9.SSdUM88GHqrS0QXHtaehbPxLQkAB3s1-qzcy3i2iRoSCzDhA1Q3o_FhiCbqOsbiPDOQ9aA1Z8-oAz1p3-TMfHy6QdIs1vLxBmNTe5IazNJw_7wwDZG2nr-bsKPUQldE--tK1EUFXQqQxQbfjJJE0JFEwPib2rmnb-t0mRopKMx2wg3CUlI64BHI2O8giGCbWB7UbJs2BpcUuapVShCIR7Eqxy0_ud81CUDjKzZK2CcmSRGDIk8g9pRqOHmPUFMOrDjj6_hUR9mf-xCrCedoC9f05z_yKD026A4gWGFn4pxTP8-uDTRPxcONax_vnQHBUDigYi8HXuzWorTx2ORPjaw";
 
-		let result = decode_token::<ClaimsServer2Server>(
+		let result = decode_token::<ClaimsServer2Server>("com.gameroasters.stack4".to_string(),
 			token.to_string(),
 			true,
 		)
