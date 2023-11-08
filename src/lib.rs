@@ -43,11 +43,11 @@ async fn fetch_apple_keys() -> Result<HashMap<String, KeyComponents>>
 
 /// decoe token with optional expiry validation
 pub async fn decode_token<T: DeserializeOwned>(
-	client_id: String,
-	token: String,
+	client_id: &str,
+	token: &str,
 	ignore_expire: bool,
 ) -> Result<TokenData<T>> {
-	let header = decode_header(token.as_str())?;
+	let header = decode_header(token)?;
 
 	let kid = match header.kid {
 		Some(k) => k,
@@ -61,32 +61,26 @@ pub async fn decode_token<T: DeserializeOwned>(
 		None => return Err(Error::KeyNotFound),
 	};
 
-	let mut val = Validation::new(header.alg);
-	val.set_audience(&[client_id]);
-	val.set_issuer(&[APPLE_ISSUER]);
+	let mut validation = Validation::new(header.alg);
+	validation.set_audience(&[client_id]);
+	validation.set_issuer(&[APPLE_ISSUER]);
 
-	val.validate_exp = !ignore_expire;
-	let token_data = decode::<T>(
-		token.as_str(),
-		&DecodingKey::from_rsa_components(&pubkey.n, &pubkey.e)
-			.unwrap(),
-		&val,
-	)?;
+	let key = DecodingKey::from_rsa_components(&pubkey.n, &pubkey.e)?;
+
+	validation.validate_exp = !ignore_expire;
+	let token_data = decode::<T>(token, &key, &validation)?;
 
 	Ok(token_data)
 }
 
 pub async fn validate(
-	client_id: String,
-	token: String,
+	client_id: &str,
+	token: &str,
 	ignore_expire: bool,
 ) -> Result<TokenData<Claims>> {
-	let token_data = decode_token::<Claims>(
-		client_id.clone(),
-		token,
-		ignore_expire,
-	)
-	.await?;
+	let token_data =
+		decode_token::<Claims>(client_id, token, ignore_expire)
+			.await?;
 
 	//TODO: can this be validated alread in `decode_token`?
 	if token_data.claims.iss != APPLE_ISSUER {
@@ -123,12 +117,7 @@ mod tests {
 		let client_id = "com.gameroasters.stack4";
 		let id_token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
 
-		let result = validate(
-			client_id.to_string(),
-			id_token.to_string(),
-			true,
-		)
-		.await?;
+		let result = validate(client_id, id_token, true).await?;
 
 		assert_eq!(
 			result.claims.sub,
@@ -144,12 +133,7 @@ mod tests {
 		let client_id = "com.gameroasters.stack4";
 		let id_token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
 
-		let result = validate(
-			client_id.to_string(),
-			id_token.to_string(),
-			false,
-		)
-		.await;
+		let result = validate(client_id, id_token, false).await;
 
 		assert!(is_expired(&result));
 	}
