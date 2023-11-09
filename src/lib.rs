@@ -141,35 +141,31 @@ pub fn is_expired<T: DeserializeOwned>(
 mod tests {
 	use super::*;
 
+	const APPLE_CLIENT_ID: &str = "com.gameroasters.stack4";
+	const APPLE_SUB: &str =
+		"001026.16112b36378440d995af22b268f00984.1744";
+	const APPLE_ID_TOKEN: &str = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
+
 	#[tokio::test]
 	async fn validate_test() {
-		let client_id = "com.gameroasters.stack4";
-		let id_token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
-
 		let result = validate::<AppleClaims>(
-			client_id,
-			id_token,
+			APPLE_CLIENT_ID,
+			APPLE_ID_TOKEN,
 			true,
 			Issuer::APPLE,
 		)
 		.await
 		.unwrap();
 
-		assert_eq!(
-			result.claims.sub,
-			"001026.16112b36378440d995af22b268f00984.1744"
-		);
-		assert_eq!(result.claims.aud, client_id);
+		assert_eq!(result.claims.sub, APPLE_SUB);
+		assert_eq!(result.claims.aud, APPLE_CLIENT_ID);
 	}
 
 	#[tokio::test]
 	async fn validate_expired() {
-		let client_id = "com.gameroasters.stack4";
-		let id_token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
-
 		let result = validate::<AppleClaims>(
-			client_id,
-			id_token,
+			APPLE_CLIENT_ID,
+			APPLE_ID_TOKEN,
 			false,
 			Issuer::APPLE,
 		)
