@@ -3,10 +3,14 @@
 mod data;
 mod error;
 
-pub use data::{Claims, ClaimsServer2Server};
+use crate::data::TokenType;
+pub use data::{AppleClaims, ClaimsServer2Server, GoogleClaims};
 pub use error::Error;
 
-use data::{KeyComponents, APPLE_ISSUER, APPLE_PUB_KEYS};
+use data::{
+	KeyComponents, APPLE_ISSUER, APPLE_PUB_KEYS, GOOGLE_ISSUER,
+	GOOGLE_PUB_KEYS,
+};
 use error::Result;
 use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
@@ -16,15 +20,28 @@ use jsonwebtoken::{
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 
+#[derive(PartialEq)]
+pub enum Issuer {
+	APPLE,
+	GOOGLE,
+}
+
 //TODO: put verification into a struct and only fetch apple keys once in the beginning
-async fn fetch_apple_keys() -> Result<HashMap<String, KeyComponents>>
-{
+async fn fetch_apple_keys(
+	issuer: &Issuer,
+) -> Result<HashMap<String, KeyComponents>> {
 	let https = HttpsConnector::new();
 	let client = Client::builder().build::<_, hyper::Body>(https);
 
+	let keys = if *issuer == Issuer::APPLE {
+		APPLE_PUB_KEYS
+	} else {
+		GOOGLE_PUB_KEYS
+	};
+
 	let req = Request::builder()
 		.method("GET")
-		.uri(APPLE_PUB_KEYS)
+		.uri(keys)
 		.body(Body::from(""))?;
 
 	let resp = client.request(req).await?;
@@ -46,6 +63,7 @@ pub async fn decode_token<T: DeserializeOwned>(
 	client_id: &str,
 	token: &str,
 	ignore_expire: bool,
+	issuer: &Issuer,
 ) -> Result<TokenData<T>> {
 	let header = decode_header(token)?;
 
@@ -54,16 +72,22 @@ pub async fn decode_token<T: DeserializeOwned>(
 		None => return Err(Error::KidNotFound),
 	};
 
-	let pubkeys = fetch_apple_keys().await?;
+	let pubkeys = fetch_apple_keys(issuer).await?;
 
 	let pubkey = match pubkeys.get(&kid) {
 		Some(key) => key,
 		None => return Err(Error::KeyNotFound),
 	};
 
+	let iss = if *issuer == Issuer::APPLE {
+		APPLE_ISSUER
+	} else {
+		GOOGLE_ISSUER
+	};
+
 	let mut validation = Validation::new(header.alg);
 	validation.set_audience(&[client_id]);
-	validation.set_issuer(&[APPLE_ISSUER]);
+	validation.set_issuer(&[iss]);
 
 	let key = DecodingKey::from_rsa_components(&pubkey.n, &pubkey.e)?;
 
@@ -73,21 +97,26 @@ pub async fn decode_token<T: DeserializeOwned>(
 	Ok(token_data)
 }
 
-pub async fn validate(
+pub async fn validate<T: DeserializeOwned + TokenType>(
 	client_id: &str,
 	token: &str,
 	ignore_expire: bool,
-) -> Result<TokenData<Claims>> {
+	issuer: Issuer,
+) -> Result<TokenData<T>> {
 	let token_data =
-		decode_token::<Claims>(client_id, token, ignore_expire)
+		decode_token::<T>(client_id, token, ignore_expire, &issuer)
 			.await?;
 
 	//TODO: can this be validated alread in `decode_token`?
-	if token_data.claims.iss != APPLE_ISSUER {
+	if (issuer == Issuer::GOOGLE
+		&& token_data.claims.iss() != GOOGLE_ISSUER)
+		|| (issuer == Issuer::APPLE
+			&& token_data.claims.iss() != APPLE_ISSUER)
+	{
 		return Err(Error::IssClaimMismatch);
 	}
 
-	if token_data.claims.aud != client_id {
+	if token_data.claims.aud() != client_id {
 		return Err(Error::ClientIdMismatch);
 	}
 	Ok(token_data)
@@ -95,8 +124,8 @@ pub async fn validate(
 
 /// allows to check whether the `validate` result was errored because of an expired signature
 #[must_use]
-pub fn is_expired(
-	validate_result: &Result<TokenData<Claims>>,
+pub fn is_expired<T: DeserializeOwned>(
+	validate_result: &Result<TokenData<T>>,
 ) -> bool {
 	if let Err(Error::Jwt(error)) = validate_result {
 		return matches!(
@@ -117,8 +146,14 @@ mod tests {
 		let client_id = "com.gameroasters.stack4";
 		let id_token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
 
-		let result =
-			validate(client_id, id_token, true).await.unwrap();
+		let result = validate::<AppleClaims>(
+			client_id,
+			id_token,
+			true,
+			Issuer::APPLE,
+		)
+		.await
+		.unwrap();
 
 		assert_eq!(
 			result.claims.sub,
@@ -132,7 +167,13 @@ mod tests {
 		let client_id = "com.gameroasters.stack4";
 		let id_token = "eyJraWQiOiJZdXlYb1kiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FwcGxlaWQuYXBwbGUuY29tIiwiYXVkIjoiY29tLmdhbWVyb2FzdGVycy5zdGFjazQiLCJleHAiOjE2MTQ1MTc1OTQsImlhdCI6MTYxNDQzMTE5NCwic3ViIjoiMDAxMDI2LjE2MTEyYjM2Mzc4NDQwZDk5NWFmMjJiMjY4ZjAwOTg0LjE3NDQiLCJjX2hhc2giOiJNNVVDdW5GdTFKNjdhdVE2LXEta093IiwiZW1haWwiOiJ6ZGZ1N2p0dXVzQHByaXZhdGVyZWxheS5hcHBsZWlkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSIsImlzX3ByaXZhdGVfZW1haWwiOiJ0cnVlIiwiYXV0aF90aW1lIjoxNjE0NDMxMTk0LCJub25jZV9zdXBwb3J0ZWQiOnRydWV9.GuMJfVbnEvqppwwHFZjn3GDJtB4c4rl7C4PZzyDsdyiuXcFcXq52Ti0WSJBsqtfyT2dXvYxVxebHtONSQha_9DiM5qfYTZbpDDlIXrOMy1fkfStocold_wHWavofIpoJQVUMj45HLHtjixiNE903Pho6eY2UjEUjB3aFe8txuFIMv2JsaMCYzG4-e632FKBn63SroCkLc-8b4EVV4iYqnC5AfZArXhVjUevhhlaBH0E8Az2OGEe74U2WgBvMXEilmd62Ek-uInnrpJRgYQfYXvehQ1yT3aMiIgJICTQFMDdL1KAvs6mc081lNJLFYvViWlMH-Y7E5ajtUiMApiNYsg";
 
-		let result = validate(client_id, id_token, false).await;
+		let result = validate::<AppleClaims>(
+			client_id,
+			id_token,
+			false,
+			Issuer::APPLE,
+		)
+		.await;
 
 		assert!(is_expired(&result));
 		assert!(result.is_err());

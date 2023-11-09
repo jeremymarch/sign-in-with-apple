@@ -4,6 +4,10 @@ pub const APPLE_PUB_KEYS: &str =
 	"https://appleid.apple.com/auth/keys";
 pub const APPLE_ISSUER: &str = "https://appleid.apple.com";
 
+pub const GOOGLE_PUB_KEYS: &str =
+	"https://www.googleapis.com/oauth2/v3/certs";
+pub const GOOGLE_ISSUER: &str = "https://accounts.google.com";
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KeyComponents {
 	pub kty: String,   // "RSA"
@@ -14,8 +18,13 @@ pub struct KeyComponents {
 	pub e: String,     // "AQAB"
 }
 
+pub trait TokenType {
+	fn iss(&self) -> &str;
+	fn aud(&self) -> &str;
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Claims {
+pub struct AppleClaims {
 	pub iss: String,
 	pub aud: String,
 	pub exp: i32,
@@ -24,7 +33,36 @@ pub struct Claims {
 	pub c_hash: String,
 	pub email: Option<String>,
 	pub email_verified: Option<String>,
-	pub auth_time: i32,
+}
+
+impl TokenType for AppleClaims {
+	fn iss(&self) -> &str {
+		&self.iss
+	}
+	fn aud(&self) -> &str {
+		&self.aud
+	}
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct GoogleClaims {
+	pub iss: String,
+	pub aud: String,
+	pub exp: i32,
+	pub iat: i32,
+	pub sub: String,
+	pub c_hash: String,
+	pub email: Option<String>,
+	pub email_verified: Option<bool>,
+}
+
+impl TokenType for GoogleClaims {
+	fn iss(&self) -> &str {
+		&self.iss
+	}
+	fn aud(&self) -> &str {
+		&self.aud
+	}
 }
 
 /// see <https://developer.apple.com/documentation/sign_in_with_apple/processing_changes_for_sign_in_with_apple_accounts>
