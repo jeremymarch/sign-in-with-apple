@@ -33,6 +33,7 @@ pub struct AppleClaims {
 	pub c_hash: String,
 	pub email: Option<String>,
 	pub email_verified: Option<String>,
+	pub nonce: Option<String>,
 }
 
 impl TokenType for AppleClaims {
@@ -54,6 +55,7 @@ pub struct GoogleClaims {
 	pub c_hash: String,
 	pub email: Option<String>,
 	pub email_verified: Option<bool>,
+	pub nonce: Option<String>,
 }
 
 impl TokenType for GoogleClaims {
