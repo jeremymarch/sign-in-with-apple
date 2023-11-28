@@ -1,4 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
 pub const APPLE_PUB_KEYS: &str =
 	"https://appleid.apple.com/auth/keys";
@@ -24,7 +25,7 @@ pub trait TokenType {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct AppleClaims {
+pub struct AppleOrGoogleClaims {
 	pub iss: String,
 	pub aud: String,
 	pub exp: i32,
@@ -32,11 +33,13 @@ pub struct AppleClaims {
 	pub sub: String,
 	pub c_hash: String,
 	pub email: Option<String>,
-	pub email_verified: Option<String>,
+	#[serde(deserialize_with = "deserialize_bool_or_string")]
+	pub email_verified: Option<bool>,
 	pub nonce: Option<String>,
+	pub nonce_supported: Option<bool>,
 }
 
-impl TokenType for AppleClaims {
+impl TokenType for AppleOrGoogleClaims {
 	fn iss(&self) -> &str {
 		&self.iss
 	}
@@ -44,7 +47,7 @@ impl TokenType for AppleClaims {
 		&self.aud
 	}
 }
-
+/*
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct GoogleClaims {
 	pub iss: String,
@@ -54,6 +57,7 @@ pub struct GoogleClaims {
 	pub sub: String,
 	pub c_hash: String,
 	pub email: Option<String>,
+	#[serde(deserialize_with = "deserialize_bool_or_string")]
 	pub email_verified: Option<bool>,
 	pub nonce: Option<String>,
 }
@@ -66,7 +70,7 @@ impl TokenType for GoogleClaims {
 		&self.aud
 	}
 }
-
+*/
 /// see <https://developer.apple.com/documentation/sign_in_with_apple/processing_changes_for_sign_in_with_apple_accounts>
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClaimsServer2Server {
@@ -109,4 +113,21 @@ where
 		serde_json::from_str(s.as_str())
 			.map_err(serde::de::Error::custom)?;
 	Ok(events)
+}
+
+fn deserialize_bool_or_string<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value: Value = Deserialize::deserialize(deserializer)?;
+
+    match value {
+        Value::Bool(b) => Ok(Some(b)),
+        Value::String(s) => match s.as_str() {
+            "true" => Ok(Some(true)),
+            "false" => Ok(Some(false)),
+            _ => Ok(None),
+        },
+        _ => Ok(None),
+    }
 }

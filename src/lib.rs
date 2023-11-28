@@ -4,7 +4,7 @@ mod data;
 mod error;
 
 use crate::data::TokenType;
-pub use data::{AppleClaims, ClaimsServer2Server, GoogleClaims};
+pub use data::{AppleOrGoogleClaims, ClaimsServer2Server, /*GoogleClaims*/};
 pub use error::Error;
 
 use data::{
@@ -13,6 +13,7 @@ use data::{
 };
 use error::Result;
 use hyper::{body, Body, Client, Request};
+
 use hyper_tls::HttpsConnector;
 use jsonwebtoken::{
 	self, decode, decode_header, DecodingKey, TokenData, Validation,
@@ -148,7 +149,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn validate_test() {
-		let result = validate::<AppleClaims>(
+		let result = validate::<AppleOrGoogleClaims>(
 			APPLE_CLIENT_ID,
 			APPLE_ID_TOKEN,
 			true,
@@ -163,7 +164,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn validate_expired() {
-		let result = validate::<AppleClaims>(
+		let result = validate::<AppleOrGoogleClaims>(
 			APPLE_CLIENT_ID,
 			APPLE_ID_TOKEN,
 			false,
